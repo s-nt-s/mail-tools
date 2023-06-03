@@ -1,4 +1,4 @@
-run/
+run/*
 !run/run.sh
 
 # Byte-compiled / optimized / DLL files
