@@ -141,7 +141,6 @@ def test_ko_fetch():
 def test_gmail():
     sMail = send_ramdom()
     with GMail(user=LG.user, password=LG.password) as imap:
-        assert imap.folder is not None
-        imap.select()
+        imap.select('ALL')
         result = list(imap.search(f'subject:"{sMail.subject}"'))
     assertMail(result, sMail)

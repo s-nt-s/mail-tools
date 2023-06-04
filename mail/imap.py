@@ -35,6 +35,10 @@ class ListException(imaplib.IMAP4.error):
     pass
 
 
+class GMailFolderException(imaplib.IMAP4.error):
+    pass
+
+
 @dataclass(frozen=True)
 class File:
     name: str
@@ -137,11 +141,10 @@ class IMAP4_SSL(imaplib.IMAP4_SSL):
 
 @dataclass(frozen=True)
 class Imap:
-    host: str
     user: str
     password: str
+    host: str
     port: int = 993
-    folder: str = 'INBOX'
 
     def login(self):
         return self.session.login(self.user, self.password)
@@ -157,8 +160,8 @@ class Imap:
             arr.append(item.decode())
         return tuple(arr)
 
-    def select(self, folder=None, readonly=False):
-        return self.session.select(folder or self.folder, readonly=readonly)
+    def select(self, folder, readonly=False):
+        return self.session.select(folder, readonly=readonly)
 
     def search(self, *criteria: str, fetch='(RFC822)'):
         typ, data = self.session.search(None, *criteria)
@@ -199,27 +202,31 @@ class Imap:
             return dt.strftime("%d-%b-%Y")
 
 
+@dataclass(frozen=True)
 class GMail(Imap):
-    def __init__(self, user: str, password: str, folder=None):
-        super().__init__(
-            user=user,
-            password=password,
-            host='imap.gmail.com',
-            port=993,
-            folder=folder
-        )
+    host: str = 'imap.gmail.com'
+    port: int = 993
 
-    def login(self):
-        rt = super().login()
-        if self.folder is None:
-            re_folder = re.compile(r'.*(?:\(| )\\All\b.*"/" "([^"]+)"$')
-            for folder in self.list():
-                m = re_folder.match(folder)
-                if m:
-                    folder = m.group(1)
-                    object.__setattr__(self, 'folder', folder)
-        return rt
+    @cached_property
+    def folder_all(self):
+        flds = set()
+        re_folder = re.compile(r'.*(?:\(| )\\All\b.*"/" "([^"]+)"$')
+        for folder in self.list():
+            m = re_folder.match(folder)
+            if m:
+                flds.add(m.group(1))
+        if len(flds) == 0:
+            raise GMailFolderException("No GMail All Folder")
+        if len(flds) > 1:
+            flds = ", ".join(sorted(flds))
+            raise GMailFolderException("Ambiguous GMail All Folder: " + flds)
+        return flds.pop()
 
     def search(self, search: str, fetch='(RFC822)'):
         search = search.replace('"', r'\"')
         return super().search('X-GM-RAW', '"' + search + '"', fetch=fetch)
+
+    def select(self, folder, readonly=False):
+        if folder == "ALL":
+            folder = self.folder_all
+        return super().select(folder, readonly=readonly)
