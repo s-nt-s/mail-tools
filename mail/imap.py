@@ -1,4 +1,3 @@
-from builtins import list as _list
 import imaplib
 from dataclasses import dataclass
 from functools import cached_property
@@ -8,8 +7,27 @@ from email.message import Message
 import json
 from typing import Union, Any
 from datetime import datetime, date
-from typing_extensions import Literal
 import functools
+
+
+class SelectException(imaplib.IMAP4.error):
+    pass
+
+
+class LoginException(imaplib.IMAP4.error):
+    pass
+
+
+class SearchException(imaplib.IMAP4.error):
+    pass
+
+
+class FetchException(imaplib.IMAP4.error):
+    pass
+
+
+class StoreException(imaplib.IMAP4.error):
+    pass
 
 
 @dataclass(frozen=True)
@@ -81,6 +99,36 @@ class Mail:
             return body.rstrip()
 
 
+def raise_deco(func, exc):
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            typ, data = func(*args, **kwargs)
+        except imaplib.IMAP4.error as e:
+            raise exc(e)
+        if typ != 'OK':
+            raise exc(str(data[0], 'utf-8'))
+        return typ, data
+    return wrapped
+
+
+class IMAP4_SSL(imaplib.IMAP4_SSL):
+    EXC = {
+        "login": LoginException,
+        "select": SelectException,
+        "search": SearchException,
+        "fetch": FetchException,
+        "store": StoreException
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, exc in IMAP4_SSL.EXC.items():
+            mth = getattr(self, name)
+            mth = raise_deco(mth, exc)
+            setattr(self, name, mth)
+
+
 @dataclass(frozen=True)
 class Imap:
     host: str
@@ -92,46 +140,27 @@ class Imap:
         self.login()
 
     def login(self):
-        try:
-            typ, data = self.session.login(self.user, self.password)
-        except imaplib.IMAP4.error as e:
-            raise LoginException(e)
-        if typ != 'OK':
-            raise LoginException(str(data[0], 'utf-8'))
+        return self.session.login(self.user, self.password)
 
     @cached_property
     def session(self):
-        return imaplib.IMAP4_SSL(self.host, self.port)
+        return IMAP4_SSL(self.host, self.port)
 
     def select(self, folder, readonly=False):
-        typ, data = self.session.select(folder, readonly=readonly)
-        if typ != 'OK':
-            raise SelectException(str(data[0], 'utf-8'))
+        return self.session.select(folder, readonly=readonly)
 
     def gmraw(self, search, **kwargs):
         return self.search('X-GM-RAW', '"' + search + '"', **kwargs)
 
     def search(self, *criteria: str, fetch='(RFC822)'):
-        try:
-            typ, data = self.session.search(None, *criteria)
-        except imaplib.IMAP4.error as e:
-            raise SearchException(e)
-        if typ != 'OK':
-            raise SearchException(str(data[0], 'utf-8'))
+        typ, data = self.session.search(None, *criteria)
         for msgId in data[0].split():
-            try:
-                typ, messageParts = self.session.fetch(msgId, fetch)
-            except imaplib.IMAP4.error as e:
-                raise FetchException(e)
-            if typ != 'OK':
-                raise FetchException(str(data[0], 'utf-8'))
+            typ, messageParts = self.session.fetch(msgId, fetch)
             mail = Mail.from_bytes(messageParts[0][1], id=msgId)
             yield mail
 
     def store(self, *args, **kwargs):
-        typ, data = self.session.store(*args, **kwargs)
-        if typ != 'OK':
-            raise StoreException(str(data[0], 'utf-8'))
+        return self.session.store(*args, **kwargs)
 
     def seen(self, *msgId: str):
         for id in msgId:
@@ -159,23 +188,3 @@ class Imap:
             dt = date.today()
         if isinstance(dt, (datetime, date)):
             return dt.strftime("%d-%b-%Y")
-
-
-class SelectException(imaplib.IMAP4.error):
-    pass
-
-
-class LoginException(imaplib.IMAP4.error):
-    pass
-
-
-class SearchException(imaplib.IMAP4.error):
-    pass
-
-
-class FetchException(imaplib.IMAP4.error):
-    pass
-
-
-class StoreException(imaplib.IMAP4.error):
-    pass
