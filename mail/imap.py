@@ -1,3 +1,4 @@
+from builtins import list as _list
 import imaplib
 from dataclasses import dataclass
 from functools import cached_property
@@ -7,6 +8,8 @@ from email.message import Message
 import json
 from typing import Union, Any
 from datetime import datetime, date
+from typing_extensions import Literal
+import functools
 
 
 @dataclass(frozen=True)
@@ -89,9 +92,12 @@ class Imap:
         self.login()
 
     def login(self):
-        typ, accountDetails = self.session.login(self.user, self.password)
+        try:
+            typ, data = self.session.login(self.user, self.password)
+        except imaplib.IMAP4.error as e:
+            raise LoginException(e)
         if typ != 'OK':
-            raise Exception('Not able to sign in!')
+            raise LoginException(str(data[0], 'utf-8'))
 
     @cached_property
     def session(self):
@@ -100,26 +106,32 @@ class Imap:
     def select(self, folder, readonly=False):
         typ, data = self.session.select(folder, readonly=readonly)
         if typ != 'OK':
-            raise Exception(str(data[0], 'utf-8'))
+            raise SelectException(str(data[0], 'utf-8'))
 
     def gmraw(self, search, **kwargs):
         return self.search('X-GM-RAW', '"' + search + '"', **kwargs)
 
     def search(self, *criteria: str, fetch='(RFC822)'):
-        typ, data = self.session.search(None, *criteria)
+        try:
+            typ, data = self.session.search(None, *criteria)
+        except imaplib.IMAP4.error as e:
+            raise SearchException(e)
         if typ != 'OK':
-            raise Exception('Error searching')
+            raise SearchException(str(data[0], 'utf-8'))
         for msgId in data[0].split():
-            typ, messageParts = self.session.fetch(msgId, fetch)
+            try:
+                typ, messageParts = self.session.fetch(msgId, fetch)
+            except imaplib.IMAP4.error as e:
+                raise FetchException(e)
             if typ != 'OK':
-                raise Exception('Error fetching mail ' + str(msgId))
+                raise FetchException(str(data[0], 'utf-8'))
             mail = Mail.from_bytes(messageParts[0][1], id=msgId)
             yield mail
 
     def store(self, *args, **kwargs):
         typ, data = self.session.store(*args, **kwargs)
         if typ != 'OK':
-            raise Exception("Fail in store")
+            raise StoreException(str(data[0], 'utf-8'))
 
     def seen(self, *msgId: str):
         for id in msgId:
@@ -129,12 +141,11 @@ class Imap:
         for id in msgId:
             self.store(id, '-FLAGS', '\\Seen')
 
-    def unread(self, *args, **kwargs):
-        return self.search(*args, 'UNSEEN', **kwargs)
-
     def close(self):
-        self.session.close()
-        self.session.logout()
+        if self.session.state == "SELECTED":
+            self.session.close()
+        if self.session.state == "AUTH":
+            self.session.logout()
 
     def __enter__(self):
         return self
@@ -148,3 +159,23 @@ class Imap:
             dt = date.today()
         if isinstance(dt, (datetime, date)):
             return dt.strftime("%d-%b-%Y")
+
+
+class SelectException(imaplib.IMAP4.error):
+    pass
+
+
+class LoginException(imaplib.IMAP4.error):
+    pass
+
+
+class SearchException(imaplib.IMAP4.error):
+    pass
+
+
+class FetchException(imaplib.IMAP4.error):
+    pass
+
+
+class StoreException(imaplib.IMAP4.error):
+    pass

@@ -1,6 +1,7 @@
 from .credentials import LOGIN as LG
-from mail.imap import Imap
+from mail.imap import Imap, SelectException, LoginException, StoreException, FetchException, SearchException
 from mail.smtp import Smtp, Mail as SMail
+import pytest
 
 import random
 import string
@@ -25,7 +26,7 @@ def send_ramdom():
 
 
 def get_unread(imap):
-    arr = list(imap.unread(f'ON "{Imap.dt_search()}"'))
+    arr = list(imap.search(f'ON "{Imap.dt_search()}"', 'UNSEEN'))
     if len(arr) > 0:
         return arr[-1]
 
@@ -82,3 +83,48 @@ def test_unread_readonly():
         assertMail(iUnread, sMail)
         iUnread = get_unread(imap)
         assertMail(iUnread, sMail)
+
+
+def test_ko_select():
+    word = randomword(50)
+
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        with pytest.raises(SelectException):
+            imap.select(word, readonly=True)
+
+
+def test_ko_login():
+    word = randomword(50)
+
+    with pytest.raises(LoginException):
+        with Imap(host=LG.imap, user=LG.user, password=word) as imap:
+            imap.select('INBOX', readonly=True)
+
+
+def test_ko_store():
+    sMail = send_ramdom()
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        imap.select('INBOX', readonly=True)
+        result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
+        assert len(result) == 1
+        iMail = result[0]
+        with pytest.raises(StoreException):
+            imap.seen(iMail.id)
+
+
+def test_ko_search():
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        imap.select('INBOX', readonly=True)
+        with pytest.raises(SearchException):
+            list(imap.search("XXXX"))
+
+
+def test_ko_fetch():
+    sMail = send_ramdom()
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        imap.select('INBOX', readonly=True)
+        with pytest.raises(FetchException):
+            list(imap.search(
+                f'HEADER Subject "{sMail.subject}"',
+                fetch="XXXX"
+            ))
