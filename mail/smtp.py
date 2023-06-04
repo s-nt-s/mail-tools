@@ -6,9 +6,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 from functools import cached_property
-from typing import Union, Any
+from typing import Union
 import json
-from os.path import isfile, basename
+from os.path import isfile
 
 
 def to_addr(s):
@@ -43,6 +43,7 @@ class Mail:
         return msg
 
     def iter_attachments(self):
+        c_disposition = 'attachment; filename="{}"'
         if isinstance(self.attachments, dict):
             for k, v in self.attachments.items():
                 name = k + ".json"
@@ -50,7 +51,7 @@ class Mail:
                     json.dumps(v).encode(),
                     Name=name
                 )
-                att['Content-Disposition'] = 'attachment; filename="%s"' % name
+                att['Content-Disposition'] = c_disposition.format(name)
                 yield att
         if isinstance(self.attachments, tuple):
             for att in self.attachments:
@@ -62,7 +63,7 @@ class Mail:
                         content,
                         Name=name
                     )
-                    att['Content-Disposition'] = 'attachment; filename="%s"' % name
+                    att['Content-Disposition'] = c_disposition.format(name)
                     yield att
 
 

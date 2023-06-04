@@ -1,5 +1,8 @@
 from .credentials import LOGIN as LG
-from mail.imap import Imap, GMail, SelectException, LoginException, StoreException, FetchException, SearchException
+from mail.imap import (
+    Imap, GMail, SelectException, LoginException,
+    StoreException, FetchException, SearchException
+)
 from mail.smtp import Smtp, Mail as SMail
 import pytest
 
