@@ -8,6 +8,7 @@ import json
 from typing import Union, Any
 from datetime import datetime, date
 import functools
+import re
 
 
 class SelectException(imaplib.IMAP4.error):
@@ -27,6 +28,10 @@ class FetchException(imaplib.IMAP4.error):
 
 
 class StoreException(imaplib.IMAP4.error):
+    pass
+
+
+class ListException(imaplib.IMAP4.error):
     pass
 
 
@@ -118,7 +123,8 @@ class IMAP4_SSL(imaplib.IMAP4_SSL):
         "select": SelectException,
         "search": SearchException,
         "fetch": FetchException,
-        "store": StoreException
+        "store": StoreException,
+        "list": ListException
     }
 
     def __init__(self, *args, **kwargs):
@@ -135,9 +141,7 @@ class Imap:
     user: str
     password: str
     port: int = 993
-
-    def __post_init__(self):
-        self.login()
+    folder: str = 'INBOX'
 
     def login(self):
         return self.session.login(self.user, self.password)
@@ -146,11 +150,15 @@ class Imap:
     def session(self):
         return IMAP4_SSL(self.host, self.port)
 
-    def select(self, folder, readonly=False):
-        return self.session.select(folder, readonly=readonly)
+    def list(self):
+        arr = []
+        typ, data = self.session.list()
+        for item in data:
+            arr.append(item.decode())
+        return tuple(arr)
 
-    def gmraw(self, search, **kwargs):
-        return self.search('X-GM-RAW', '"' + search + '"', **kwargs)
+    def select(self, folder=None, readonly=False):
+        return self.session.select(folder or self.folder, readonly=readonly)
 
     def search(self, *criteria: str, fetch='(RFC822)'):
         typ, data = self.session.search(None, *criteria)
@@ -177,6 +185,7 @@ class Imap:
             self.session.logout()
 
     def __enter__(self):
+        self.login()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -188,3 +197,29 @@ class Imap:
             dt = date.today()
         if isinstance(dt, (datetime, date)):
             return dt.strftime("%d-%b-%Y")
+
+
+class GMail(Imap):
+    def __init__(self, user: str, password: str, folder=None):
+        super().__init__(
+            user=user,
+            password=password,
+            host='imap.gmail.com',
+            port=993,
+            folder=folder
+        )
+
+    def login(self):
+        rt = super().login()
+        if self.folder is None:
+            re_folder = re.compile(r'.*(?:\(| )\\All\b.*"/" "([^"]+)"$')
+            for folder in self.list():
+                m = re_folder.match(folder)
+                if m:
+                    folder = m.group(1)
+                    object.__setattr__(self, 'folder', folder)
+        return rt
+
+    def search(self, search: str, fetch='(RFC822)'):
+        search = search.replace('"', r'\"')
+        return super().search('X-GM-RAW', '"' + search + '"', fetch=fetch)

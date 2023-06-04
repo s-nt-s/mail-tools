@@ -73,9 +73,6 @@ class Smtp:
     password: str
     port: int = 465
 
-    def __post_init__(self):
-        self.login()
-
     def login(self):
         self.session.login(self.user, self.password)
 
@@ -94,6 +91,7 @@ class Smtp:
         self.session.sendmail(msg['From'], msg['To'], msg.as_string())
 
     def __enter__(self):
+        self.login()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

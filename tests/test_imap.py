@@ -1,5 +1,5 @@
 from .credentials import LOGIN as LG
-from mail.imap import Imap, SelectException, LoginException, StoreException, FetchException, SearchException
+from mail.imap import Imap, GMail, SelectException, LoginException, StoreException, FetchException, SearchException
 from mail.smtp import Smtp, Mail as SMail
 import pytest
 
@@ -119,6 +119,14 @@ def test_ko_search():
             list(imap.search("XXXX"))
 
 
+def test_ko_search_no_selected():
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        with pytest.raises(SearchException):
+            list(imap.search(
+                f'HEADER Subject "{randomword(50)}"'
+            ))
+
+
 def test_ko_fetch():
     sMail = send_ramdom()
     with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
@@ -128,3 +136,12 @@ def test_ko_fetch():
                 f'HEADER Subject "{sMail.subject}"',
                 fetch="XXXX"
             ))
+
+
+def test_gmail():
+    sMail = send_ramdom()
+    with GMail(user=LG.user, password=LG.password) as imap:
+        assert imap.folder is not None
+        imap.select()
+        result = list(imap.search(f'subject:"{sMail.subject}"'))
+    assertMail(result, sMail)
