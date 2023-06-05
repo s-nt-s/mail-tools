@@ -3,8 +3,12 @@ from mail.imap import (
     Imap, GMail, SelectException, LoginException,
     StoreException, FetchException, SearchException
 )
+from mail.imap import Mail as IMail
 from mail.smtp import Smtp, Mail as SMail
 import pytest
+from os.path import isfile
+import json
+from typing import Union
 
 import random
 import string
@@ -34,7 +38,7 @@ def get_unread(imap):
         return arr[-1]
 
 
-def assertMail(iMail, sMail):
+def assertMail(iMail: Union[list[IMail], IMail], sMail, check_download=False):
     if isinstance(iMail, list):
         assert len(iMail) == 1
         iMail = iMail[0]
@@ -44,6 +48,13 @@ def assertMail(iMail, sMail):
     sAt = list(sMail.attachments.keys())[0]
     assert att.name == sAt + ".json"
     assert att.content == sMail.attachments[sAt]
+    if check_download:
+        target = att.save("/tmp/unit-test/")
+        assert isfile(target)
+        with open(target, "r") as f:
+            js = json.load(f)
+        assert att.content == js
+        assert att.content == sMail.attachments[sAt]
 
 
 def test_search():
@@ -52,6 +63,14 @@ def test_search():
         imap.select('INBOX')
         result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
     assertMail(result, sMail)
+
+
+def test_download():
+    sMail = send_ramdom()
+    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+        imap.select('INBOX')
+        result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
+    assertMail(result, sMail, check_download=True)
 
 
 def test_unread():

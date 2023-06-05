@@ -9,6 +9,8 @@ from typing import Union, Any
 from datetime import datetime, date
 import functools
 import re
+from os.path import join, dirname, isdir
+from os import makedirs
 
 
 class SelectException(imaplib.IMAP4.error):
@@ -51,6 +53,16 @@ class File:
             content = self.bytes.decode('utf8')
             return json.loads(content)
         return self.bytes
+
+    def save(self, target):
+        if target[-1] in ("/", "\\"):
+            target = join(target, self.name)
+        fdir = dirname(target)
+        if fdir and not isdir(fdir):
+            makedirs(fdir)
+        with open(target, "wb") as f:
+            f.write(self.bytes)
+        return target
 
 
 @dataclass(frozen=True)
