@@ -13,6 +13,8 @@ from typing import Union
 import random
 import string
 
+SUBJECT = "unit-test-0123456789"
+
 
 def randomword(length):
     letters = string.ascii_lowercase
@@ -23,8 +25,8 @@ def randomword(length):
 def send_ramdom():
     sMail = SMail(
         to=LG.user,
-        subject="unit-test-" + randomword(50),
-        body="unit-test-" + randomword(50),
+        subject=SUBJECT + "-" + randomword(50),
+        body=SUBJECT + "-" + randomword(50),
         attachments=dict(file=dict(a=randomword(50)))
     )
     with Smtp(host=LG.smtp, user=LG.user, password=LG.password) as smtp:
@@ -166,3 +168,15 @@ def test_gmail():
         imap.select('ALL')
         result = list(imap.search(f'subject:"{sMail.subject}"'))
     assertMail(result, sMail)
+
+
+def test_delete():
+    sMail = send_ramdom()
+    search = f'subject:"{SUBJECT}" from:{LG.user}'
+    with GMail(user=LG.user, password=LG.password) as imap:
+        imap.select('ALL')
+        result = imap.get_ids(search)
+        assert len(result) > 0
+        imap.delete(*result)
+        result = imap.get_ids(search + ' -in:trash')
+        assert len(result) == 0

@@ -199,6 +199,10 @@ class Imap:
         for id in msgId:
             self.store(id, '-FLAGS', '\\Seen')
 
+    def delete(self, *msgId: str):
+        for id in msgId:
+            self.store(id, '+FLAGS', '\\Deleted')
+
     def close(self):
         if self.session.state == "SELECTED":
             self.session.close()
@@ -226,26 +230,38 @@ class GMail(Imap):
     port: int = 993
 
     @cached_property
-    def folder_all(self):
-        flds = set()
-        re_folder = re.compile(r'.*(?:\(| )\\All\b.*"/" "([^"]+)"$')
+    def gmfolders(self):
+        def mk_re(flag):
+            # _ r'.*(?:\(| )\\All\b.*"/" "([^"]+)"$')
+            return re.compile(
+                r'.*(?:\(| )\\' + flag + r'\b.*"/" "(\[Gmail\]/[^"]+)"$')
+        re_folder = {
+            'ALL': mk_re('All'),
+            'TRASH': mk_re('Trash'),
+        }
+        al_folder = {k: set() for k in re_folder.keys()}
         for folder in self.list():
-            m = re_folder.match(folder)
-            if m:
-                flds.add(m.group(1))
-        if len(flds) == 0:
-            raise GMailFolderException("No GMail All Folder")
-        if len(flds) > 1:
-            flds = ", ".join(sorted(flds))
-            raise GMailFolderException("Ambiguous GMail All Folder: " + flds)
-        return flds.pop()
+            for alias, re_alias in re_folder.items():
+                m = re_alias.match(folder)
+                if m:
+                    al_folder[alias].add(m.group(1))
+        for alias, folders in list(al_folder.items()):
+            if len(folders) == 0:
+                raise GMailFolderException(f"No GMail {alias} Folder")
+            if len(folders) > 1:
+                raise GMailFolderException(
+                    f"Ambiguous GMail {alias} Folder: {', '.join(sorted(folders))}")
+            al_folder[alias] = folders.pop()
+        return al_folder
 
     def get_ids(self, search: str, fetch='(RFC822)'):
         search = search.replace('"', r'\"')
         return super().get_ids('X-GM-RAW', '"' + search + '"', fetch=fetch)
 
     def select(self, folder, readonly=False):
-        if folder == "ALL":
-            folder = self.folder_all
+        folder = self.gmfolders.get(folder, folder)
         return super().select(folder, readonly=readonly)
 
+    def delete(self, *msgId: str):
+        for id in msgId:
+            self.store(id, '+X-GM-LABELS', '\\Trash')

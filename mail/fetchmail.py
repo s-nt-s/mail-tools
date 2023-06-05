@@ -106,10 +106,10 @@ class FetchMail:
 
     def search_credentials(
             self,
-            match: FetchMailItem) -> Tuple[FetchCredentials]:
+            match: FetchMailItem = None) -> Tuple[FetchCredentials]:
         crd = []
         for item in self.items:
-            if match == item.subset(match.fields_filled()):
+            if match is None or match == item.subset(match.fields_filled()):
                 arr_append(
                     crd,
                     FetchCredentials(
@@ -122,7 +122,7 @@ class FetchMail:
                 )
         return tuple(crd)
 
-    def get_credential(self, match: FetchMailItem) -> FetchCredentials:
+    def get_credential(self, match: FetchMailItem = None) -> FetchCredentials:
         crd = self.search_credentials(match)
         if len(crd) == 0:
             raise Exception("Credential not found")
