@@ -3,6 +3,8 @@ import sys
 from functools import cached_property, cache
 from typing import NamedTuple
 from typing import Tuple
+from dataclasses import dataclass
+from os.path import isfile
 
 
 def shell_output(*args: str, **kwargv) -> str:
@@ -59,11 +61,20 @@ class FetchCredentials(NamedTuple):
     password: str
 
 
+@dataclass(frozen=True)
 class FetchMail:
+    fetchmailrc: str = None
+
+    def __post_init__(self):
+        if self.fetchmailrc is not None and not isfile(self.fetchmailrc):
+            raise FileNotFoundError("%s is not a file" % self.fetchmailrc)
 
     @cached_property
     def config(self):
-        py_code = shell_output("fetchmail", "--configdump")
+        cmd = ["fetchmail", "--configdump"]
+        if self.fetchmailrc:
+            cmd.extend(["--fetchmailrc", self.fetchmailrc])
+        py_code = shell_output(*cmd)
         fetchmailrc = run_py_code(py_code, 'fetchmailrc')
         return fetchmailrc
 

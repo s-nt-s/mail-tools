@@ -1,0 +1,6 @@
+poll imap.example.com protocol IMAP 
+   user "examplel@domain.com" is USER here
+   password 'password'
+   folder 'folder'
+   keep
+   ssl
