@@ -176,11 +176,17 @@ class Imap:
         return self.session.select(folder, readonly=readonly)
 
     def search(self, *criteria: str, fetch='(RFC822)'):
+        for msgId in self.get_ids(*criteria, fetch=fetch):
+            yield self.fetch(msgId, fetch=fetch)
+
+    def get_ids(self, *criteria: str, fetch='(RFC822)'):
         typ, data = self.session.search(None, *criteria)
-        for msgId in data[0].split():
-            typ, messageParts = self.session.fetch(msgId, fetch)
-            mail = Mail.from_bytes(messageParts[0][1], id=msgId)
-            yield mail
+        return tuple(data[0].split())
+
+    def fetch(self, msgId, fetch='(RFC822)'):
+        typ, messageParts = self.session.fetch(msgId, fetch)
+        mail = Mail.from_bytes(messageParts[0][1], id=msgId)
+        return mail
 
     def store(self, *args, **kwargs):
         return self.session.store(*args, **kwargs)
@@ -234,11 +240,12 @@ class GMail(Imap):
             raise GMailFolderException("Ambiguous GMail All Folder: " + flds)
         return flds.pop()
 
-    def search(self, search: str, fetch='(RFC822)'):
+    def get_ids(self, search: str, fetch='(RFC822)'):
         search = search.replace('"', r'\"')
-        return super().search('X-GM-RAW', '"' + search + '"', fetch=fetch)
+        return super().get_ids('X-GM-RAW', '"' + search + '"', fetch=fetch)
 
     def select(self, folder, readonly=False):
         if folder == "ALL":
             folder = self.folder_all
         return super().select(folder, readonly=readonly)
+
