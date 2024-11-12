@@ -6,31 +6,55 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 from functools import cached_property
-from typing import Union
+from typing import Union, Any
 import json
 from os.path import isfile
+import re
+
+re_mail = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 
-def to_addr(s):
-    if isinstance(s, str):
-        return s
-    return COMMASPACE.join(s)
+def to_mail_tuple(m: Union[None, str, tuple[str, ...], list[str]]):
+    if m is None:
+        return tuple()
+    if isinstance(m, (tuple, list)):
+        return tuple(m)
+    if not isinstance(m, str):
+        raise ValueError("Not a valid email: "+str(type(m))+" "+str(m))
+    v = re_mail.findall(m)
+    return tuple(sorted(set(v)))
 
 
 @dataclass(frozen=True)
 class Mail:
-    to: Union[str, list, tuple]
+    to: tuple[str, ...]
     frm: str = None
     dt: str = formatdate(localtime=True)
     subject: Union[str, None] = None
     body: Union[str, None] = None
-    attachments: Union[tuple, dict] = tuple()
+    attachments: Union[tuple[str, ...], dict[str, Any]] = tuple()
+    cc: tuple[str, ...] = tuple()
+    bcc: tuple[str, ...] = tuple()
+
+    def __post_init__(self):
+        object.__setattr__(self, 'to', to_mail_tuple(self.to))
+        object.__setattr__(self, 'cc', to_mail_tuple(self.cc))
+        object.__setattr__(self, 'bcc', to_mail_tuple(self.bcc))
+
+    @property
+    def to_addrs(self):
+        return tuple(sorted(
+            set(self.to).union(self.bcc).union(self.bcc)
+        ))
 
     def to_multipart(self):
         msg = MIMEMultipart()
         if self.frm:
             msg['From'] = self.frm
-        msg['To'] = to_addr(self.to)
+        if self.to:
+            msg['To'] = COMMASPACE.join(self.to)
+        if self.cc:
+            msg['CC'] = COMMASPACE.join(self.cc)
         msg['Date'] = self.dt
         if self.subject:
             msg['Subject'] = self.subject
@@ -85,11 +109,28 @@ class Smtp:
         self.session.close()
 
     def send(self, msg: Union[MIMEMultipart, Mail]):
-        if isinstance(msg, Mail):
-            msg = msg.to_multipart()
+        to_addrs, msg = self.__prepare_mail(msg)
+
+        if len(to_addrs) == 0:
+            raise ValueError("to_addrs is empty")
+
         if msg['From'] is None:
             msg['From'] = self.user
-        self.session.sendmail(msg['From'], msg['To'], msg.as_string())
+
+        self.session.sendmail(
+            msg['From'],
+            to_addrs,
+            msg.as_string()
+        )
+
+    def __prepare_mail(self,  msg: Union[MIMEMultipart, Mail]) -> tuple[tuple[str, ...], MIMEMultipart]:
+        if isinstance(msg, Mail):
+            return msg.to_addrs, msg.to_multipart()
+        to_addrs = set()
+        for k in ('To', 'CC'):
+            m = re_mail.findall(msg.get(k, ''))
+            to_addrs = to_addrs.union(m)
+        return tuple(sorted(to_addrs)), msg
 
     def __enter__(self):
         self.login()
