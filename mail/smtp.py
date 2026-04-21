@@ -6,10 +6,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 from functools import cached_property
-from typing import Union, Any
+from typing import Union, Any, Optional
 import json
 from os.path import isfile
 import re
+from mail.config import Config, LocalConfig
 
 re_mail = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
@@ -91,19 +92,26 @@ class Mail:
                     yield att
 
 
-@dataclass(frozen=True)
 class Smtp:
-    host: str
-    user: str
-    password: str
-    port: int = 465
+    def __init__(self, config: Optional[Config] = None):
+        if config is None:
+            config = LocalConfig.load_from_system().smtp
+        if not isinstance(config, Config):
+            raise ValueError("Invalid Config")
+        self.__config = config
 
     def login(self):
-        self.session.login(self.user, self.password)
+        self.session.login(
+            self.__config.user,
+            self.__config.pssw
+        )
 
     @cached_property
     def session(self):
-        return smtplib.SMTP_SSL(self.host, self.port)
+        return smtplib.SMTP_SSL(
+            self.__config.host,
+            self.__config.port
+        )
 
     def close(self):
         self.session.close()

@@ -5,12 +5,17 @@ from email import message_from_bytes
 from email.header import decode_header
 from email.message import Message
 import json
-from typing import Union, Any
+from typing import Union, Any, Optional
 from datetime import datetime, date
 import functools
 import re
 from os.path import join, dirname, isdir
 from os import makedirs
+from mail.config import Config, LocalConfig
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class SelectException(imaplib.IMAP4.error):
@@ -42,7 +47,7 @@ class GMailFolderException(imaplib.IMAP4.error):
 
 
 @dataclass(frozen=True)
-class File:
+class Attachment:
     name: str
     bytes: Any
 
@@ -77,7 +82,7 @@ class Mail:
 
     @cached_property
     def attachments(self):
-        atts: list[File] = []
+        atts: list[Attachment] = []
         for part in self.msg.walk():
             if part.get_content_maintype() == 'multipart':
                 continue
@@ -90,7 +95,7 @@ class Mail:
                 if not isinstance(file_name, str):
                     file_name = str(file_name, 'utf-8', 'ignore')
                 body_bytes = part.get_payload(decode=True)
-                atts.append(File(
+                atts.append(Attachment(
                     name=file_name,
                     bytes=body_bytes
                 ))
@@ -151,19 +156,26 @@ class IMAP4_SSL(imaplib.IMAP4_SSL):
             setattr(self, name, mth)
 
 
-@dataclass(frozen=True)
 class Imap:
-    user: str
-    password: str
-    host: str
-    port: int = 993
+    def __init__(self, config: Optional[Config] = None):
+        if config is None:
+            config = LocalConfig.load_from_system().imap
+        if not isinstance(config, Config):
+            raise ValueError("Invalid Config")
+        self.__config = config
 
     def login(self):
-        return self.session.login(self.user, self.password)
+        return self.session.login(
+            self.__config.user,
+            self.__config.pssw
+        )
 
     @cached_property
     def session(self):
-        return IMAP4_SSL(self.host, self.port)
+        return IMAP4_SSL(
+            self.__config.host,
+            self.__config.port
+        )
 
     def list(self):
         arr = []
@@ -224,10 +236,14 @@ class Imap:
             return dt.strftime("%d-%b-%Y")
 
 
-@dataclass(frozen=True)
 class GMail(Imap):
-    host: str = 'imap.gmail.com'
-    port: int = 993
+    def __init__(
+        self,
+        config: Optional[Config] = None
+    ):
+        super().__init__(config)
+        if (self.__config.host, self.__config.port) != ('imap.gmail.com', 993):
+            logger.warning("GMail config should have host=imap.gmail.com and port=993")
 
     @cached_property
     def gmfolders(self):

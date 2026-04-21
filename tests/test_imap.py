@@ -29,7 +29,7 @@ def send_ramdom():
         body=SUBJECT + "-" + randomword(50),
         attachments=dict(file=dict(a=randomword(50)))
     )
-    with Smtp(host=LG.smtp, user=LG.user, password=LG.password) as smtp:
+    with Smtp(LG.to_smtp()) as smtp:
         smtp.send(sMail)
     return sMail
 
@@ -61,7 +61,7 @@ def assertMail(iMail: Union[list[IMail], IMail], sMail, check_download=False):
 
 def test_search():
     sMail = send_ramdom()
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX')
         result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
     assertMail(result, sMail)
@@ -69,7 +69,7 @@ def test_search():
 
 def test_download():
     sMail = send_ramdom()
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX')
         result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
     assertMail(result, sMail, check_download=True)
@@ -78,7 +78,7 @@ def test_download():
 def test_unread():
     sMail = send_ramdom()
 
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX')
 
         iUnread = get_unread(imap)
@@ -101,7 +101,7 @@ def test_unread():
 def test_unread_readonly():
     sMail = send_ramdom()
 
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX', readonly=True)
         iUnread = get_unread(imap)
         assertMail(iUnread, sMail)
@@ -112,7 +112,7 @@ def test_unread_readonly():
 def test_ko_select():
     word = randomword(50)
 
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         with pytest.raises(SelectException):
             imap.select(word, readonly=True)
 
@@ -121,13 +121,13 @@ def test_ko_login():
     word = randomword(50)
 
     with pytest.raises(LoginException):
-        with Imap(host=LG.imap, user=LG.user, password=word) as imap:
+        with Imap(LG.to_imap()._replace(pssw=word)) as imap:
             imap.select('INBOX', readonly=True)
 
 
 def test_ko_store():
     sMail = send_ramdom()
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX', readonly=True)
         result = list(imap.search(f'HEADER Subject "{sMail.subject}"'))
         assert len(result) == 1
@@ -137,14 +137,14 @@ def test_ko_store():
 
 
 def test_ko_search():
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX', readonly=True)
         with pytest.raises(SearchException):
             list(imap.search("XXXX"))
 
 
 def test_ko_search_no_selected():
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         with pytest.raises(SearchException):
             list(imap.search(
                 f'HEADER Subject "{randomword(50)}"'
@@ -153,7 +153,7 @@ def test_ko_search_no_selected():
 
 def test_ko_fetch():
     sMail = send_ramdom()
-    with Imap(host=LG.imap, user=LG.user, password=LG.password) as imap:
+    with Imap(LG.to_imap()) as imap:
         imap.select('INBOX', readonly=True)
         with pytest.raises(FetchException):
             list(imap.search(
@@ -164,7 +164,7 @@ def test_ko_fetch():
 
 def test_gmail():
     sMail = send_ramdom()
-    with GMail(user=LG.user, password=LG.password) as imap:
+    with GMail(LG.to_imap()) as imap:
         imap.select('ALL')
         result = list(imap.search(f'subject:"{sMail.subject}"'))
     assertMail(result, sMail)
@@ -173,7 +173,7 @@ def test_gmail():
 def test_delete():
     sMail = send_ramdom()
     search = f'subject:"{SUBJECT}" from:{LG.user}'
-    with GMail(user=LG.user, password=LG.password) as imap:
+    with GMail(LG.to_imap()) as imap:
         imap.select('ALL')
         result = imap.get_ids(search)
         assert len(result) > 0
