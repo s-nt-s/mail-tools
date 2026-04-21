@@ -123,7 +123,7 @@ class Smtp:
             raise ValueError("to_addrs is empty")
 
         if msg['From'] is None:
-            msg['From'] = self.user
+            msg['From'] = self.__config.user
 
         self.session.sendmail(
             msg['From'],
@@ -146,3 +146,15 @@ class Smtp:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    @property
+    def host(self):
+        return self.__config.host
+
+    @property
+    def port(self):
+        return self.__config.port
+
+    @property
+    def user(self):
+        return self.__config.user

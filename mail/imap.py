@@ -235,6 +235,18 @@ class Imap:
         if isinstance(dt, (datetime, date)):
             return dt.strftime("%d-%b-%Y")
 
+    @property
+    def host(self):
+        return self.__config.host
+
+    @property
+    def port(self):
+        return self.__config.port
+
+    @property
+    def user(self):
+        return self.__config.user
+
 
 class GMail(Imap):
     def __init__(
@@ -242,8 +254,9 @@ class GMail(Imap):
         config: Optional[Config] = None
     ):
         super().__init__(config)
-        if (self.__config.host, self.__config.port) != ('imap.gmail.com', 993):
-            logger.warning("GMail config should have host=imap.gmail.com and port=993")
+        if (self.host, self.port) != ('imap.gmail.com', 993):
+            logger.warning(
+                "GMail config should have host=imap.gmail.com and port=993")
 
     @cached_property
     def gmfolders(self):
