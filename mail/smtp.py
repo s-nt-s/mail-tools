@@ -6,11 +6,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 from functools import cached_property
-from typing import Union, Any, Optional
+from typing import Union, Any
 import json
 from os.path import isfile
 import re
-from mail.config import Config, LocalConfig
+from mail.config import Config
 
 re_mail = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
@@ -93,9 +93,7 @@ class Mail:
 
 
 class Smtp:
-    def __init__(self, config: Optional[Config] = None):
-        if config is None:
-            config = LocalConfig.load_from_system().smtp
+    def __init__(self, config: Config):
         if not isinstance(config, Config):
             raise ValueError("Invalid Config")
         self.__config = config

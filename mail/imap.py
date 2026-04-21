@@ -5,13 +5,13 @@ from email import message_from_bytes
 from email.header import decode_header
 from email.message import Message
 import json
-from typing import Union, Any, Optional
+from typing import Union, Any
 from datetime import datetime, date
 import functools
 import re
 from os.path import join, dirname, isdir
 from os import makedirs
-from mail.config import Config, LocalConfig
+from mail.config import Config
 import logging
 
 
@@ -157,9 +157,7 @@ class IMAP4_SSL(imaplib.IMAP4_SSL):
 
 
 class Imap:
-    def __init__(self, config: Optional[Config] = None):
-        if config is None:
-            config = LocalConfig.load_from_system().imap
+    def __init__(self, config: Config):
         if not isinstance(config, Config):
             raise ValueError("Invalid Config")
         self.__config = config
@@ -251,7 +249,7 @@ class Imap:
 class GMail(Imap):
     def __init__(
         self,
-        config: Optional[Config] = None
+        config: Config
     ):
         super().__init__(config)
         if (self.host, self.port) != ('imap.gmail.com', 993):

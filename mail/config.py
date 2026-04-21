@@ -5,8 +5,8 @@ import re
 
 
 _HOST_PORT = {
-   'imap.gmail.com': 993,
-   'smtp.gmail.com': 465
+    'imap.gmail.com': 993,
+    'smtp.gmail.com': 465
 }
 SMTP_IMAP = {
     'smtp.gmail.com': 'imap.gmail.com'
@@ -37,7 +37,7 @@ class Config:
     pssw: str
 
     def __post_init__(self):
-        port =  _HOST_PORT.get(self.host)
+        port = _HOST_PORT.get(self.host)
         if port is not None:
             object.__setattr__(self, 'port', port)
         elif isinstance(self.port, str) and self.port.isdecimal():
@@ -74,7 +74,8 @@ class LocalConfig:
         if self.smtp is not None and self.imap is None:
             imap = SMTP_IMAP.get(self.smtp.host)
             if imap:
-                object.__setattr__(self, 'imap', replace(self.smtp, host=imap, port=None))
+                object.__setattr__(self, 'imap', replace(
+                    self.smtp, host=imap, port=None))
         ko: list[str] = []
         for f in fields(self):
             v = getattr(self, f.name)
@@ -86,7 +87,7 @@ class LocalConfig:
     @classmethod
     def build(cls, obj: dict | None):
         return cls(**_mk_obj(obj, *(f.name for f in fields(cls))))
-    
+
     @classmethod
     def load_from_system(cls):
         config = {'smtp': {}, 'imap': {}}
