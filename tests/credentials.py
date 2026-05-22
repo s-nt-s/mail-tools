@@ -5,11 +5,12 @@ from typing import NamedTuple
 
 load_dotenv()
 
+
 def get_credentials():
-    imap=os.environ.get("IMAP_HOST")
-    smtp=os.environ.get("SMTP_HOST")
-    user=os.environ.get("MAIL_USER")
-    pssw=os.environ.get("MAIL_PASS")
+    imap = os.environ.get("IMAP_HOST")
+    smtp = os.environ.get("SMTP_HOST")
+    user = os.environ.get("MAIL_USER")
+    pssw = os.environ.get("MAIL_PASS")
     if None in (imap, smtp, user, pssw):
         users: set[str] = set()
         pssws: set[str] = set()
@@ -34,6 +35,7 @@ def get_credentials():
         user=user,
         pssw=pssw
     )
+
 
 class Loging(NamedTuple):
     imap: str

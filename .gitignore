@@ -1,3 +1,4 @@
+*.log.md
 run/*
 !run/run.sh
 
