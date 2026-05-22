@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from email import message_from_bytes
 from email.header import decode_header
+from email.utils import parseaddr
 from email.message import Message
 import json
 from typing import Union, Any
@@ -13,6 +14,8 @@ from os.path import join, dirname, isdir
 from os import makedirs
 from mail.config import Config
 import logging
+from email.utils import parsedate_to_datetime
+from datetime import datetime
 
 
 logger = logging.getLogger(__name__)
@@ -102,7 +105,20 @@ class Mail:
         return tuple(atts)
 
     @cached_property
-    def body(self) -> Union[str, None]:
+    def body(self):
+        body = self.__get_body()
+        if body is None:
+            return None
+        fake_br = re.escape("%$%&·%$·$··&%%$&%$&/")
+        body = body.replace("\n", fake_br)
+        body = re.sub(r"\s", " ", body)
+        body = body.replace(fake_br, "\n")
+        body = body.strip()
+        if len(body) == 0:
+            return None
+        return body
+
+    def __get_body(self) -> Union[str, None]:
         if not self.msg.is_multipart():
             c_type = self.msg.get_content_type()
             if c_type == "text/plain":
@@ -123,6 +139,30 @@ class Mail:
             deco = part.get_content_charset()
             body = body.decode(deco)
             return body.rstrip()
+
+    @cached_property
+    def subject(self) -> str:
+        raw_subject = self.msg['Subject']
+        if raw_subject is None:
+            return ""
+        decoded_parts = decode_header(raw_subject)
+        subject_parts = []
+        for part, charset in decoded_parts:
+            if isinstance(part, bytes):
+                part = part.decode(charset or 'utf-8', errors='ignore')
+            subject_parts.append(part)
+        return ''.join(subject_parts)
+
+    @cached_property
+    def sender(self) -> str:
+        return parseaddr(self.msg['From'])[1]
+
+    @cached_property
+    def sent_date(self) -> datetime | None:
+        raw_date = self.msg['Date']
+        if raw_date is None:
+            return None
+        return parsedate_to_datetime(raw_date)
 
 
 def raise_deco(func, exc):
