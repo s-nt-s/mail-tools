@@ -311,7 +311,7 @@ class GMail(Imap):
             for alias, re_alias in re_folder.items():
                 m = re_alias.match(folder)
                 if m:
-                    al_folder[alias].add(m.group(1))
+                    al_folder[alias].add(f'"{m.group(1)}"')
         for alias, folders in list(al_folder.items()):
             if len(folders) == 0:
                 raise GMailFolderException(f"No GMail {alias} Folder")
